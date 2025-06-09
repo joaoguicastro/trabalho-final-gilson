@@ -6,7 +6,8 @@
             [ring.middleware.json :refer [wrap-json-body]]
             [calculadora.db :as db]
             [calculadora.transacoes :as val]
-            [calculadora.conexoes :as conexao]))
+            [calculadora.conexoes :as conexao]
+            [clojure.string :as str]))
 
 (defn como-json [conteudo & [status]]
   {:status (or status 200)
@@ -14,93 +15,83 @@
    :body (json/generate-string conteudo)})
 
 (comp/defroutes rotas
+
+  ;; Rota inicial
   (comp/GET "/" [] "Calculadora de Calorias - API")
 
-  ;; Cadastrar usuário
+  ;; Cadastro de usuário
   (comp/POST "/usuario" req
     (let [body (:body req)]
       (if (val/valida-usuario? body)
-        (como-json (db/cadastrar-usuario body) 201)
+        (como-json (db/adicionar-usuario body) 201)
         (como-json {:erro "Usuário inválido"} 400))))
 
-  ;; Registrar transação com cálculo automático de calorias
+  ;; Registro de transação
   (comp/POST "/transacao" req
-    (let [{:keys [tipo descricao data quantidade]} (:body req)]
+    (let [{:keys [tipo descricao data quantidade index]} (:body req)
+          index (or index 0)]
       (cond
         (not (#{:ganho :perda "ganho" "perda"} tipo))
         (como-json {:erro "Tipo deve ser 'ganho' ou 'perda'"} 400)
-  
+
         (nil? descricao)
         (como-json {:erro "Descrição obrigatória"} 400)
-  
-        :else
-        (let [traducao (calculadora.conexoes/traduzir descricao "pt" "en")
-              desc-inglês (:translated_text traducao)]
-  
-          (println "🔎 Descrição original:" descricao)
-          (println "🌐 Tradução para inglês:" desc-inglês)
-  
-          (if (or (nil? desc-inglês) (clojure.string/blank? desc-inglês))
-            (como-json {:erro "Tradução inválida ou vazia"} 422)
-            (try
-              (let [api-data (if (or (= tipo :perda) (= tipo "perda"))
-                               (first (calculadora.conexoes/pegar-gasto-calorias desc-inglês))
-                               (first (calculadora.conexoes/pegar-ganho-calorias desc-inglês)))
-                    _ (println "📡 Dados da API:" api-data)
-                    cal-str (or (:calories api-data)
-                                (:total_calories api-data)
-                                0)
-                    calorias (-> cal-str str Double/parseDouble int)
-                    quant (or quantidade 1)]
-  
-                (println "🔥 Calorias encontradas por unidade:" calorias)
-  
-                (if (pos? calorias)
-                  (let [trans {:tipo (name tipo)
-                               :descricao descricao
-                               :data data
-                               :quantidade quant
-                               :calorias (* calorias quant)}]
-                    (como-json (db/registrar-transacao trans) 201))
-                  (como-json {:erro "Calorias não encontradas para a descrição informada"} 422)))
-              (catch Exception e
-                (println "❌ Erro ao processar transação:" (.getMessage e))
-                (como-json {:erro "Erro ao processar calorias ou consultar API externa"} 500))))))))
 
+        :else
+        (try
+          (let [traducao (conexao/traduzir descricao "pt" "en")
+                descricao-ing (get traducao "translated_text")]
+            (if (str/blank? descricao-ing)
+              (como-json {:erro "Erro na tradução da descrição"} 422)
+              (let [registro {:tipo (name tipo)
+                              :descricao descricao-ing
+                              :data data
+                              :quantidade quantidade}]
+                (como-json (db/nova-transacao registro index)))))
+          (catch Exception e
+            (println "❌ Erro ao registrar transação:" (.getMessage e))
+            (como-json {:erro "Erro ao processar transação"} 500))))))
 
   ;; Extrato por período
   (comp/GET "/extrato" {{:keys [inicio fim]} :params}
-    (como-json {:transacoes (db/transacoes-por-periodo (Integer/parseInt inicio)
-                                                       (Integer/parseInt fim))}))
+    (if (and inicio fim)
+      (como-json {:transacoes (db/registros-no-intervalo inicio fim)})
+      (como-json {:erro "Parâmetros 'inicio' e 'fim' são obrigatórios no formato dd/MM/yyyy"} 400)))
 
   ;; Saldo por período
   (comp/GET "/saldo" {{:keys [inicio fim]} :params}
-    (como-json {:saldo (db/saldo-por-periodo (Integer/parseInt inicio)
-                                             (Integer/parseInt fim))}))
+    (if (and inicio fim)
+      (como-json {:saldo (db/saldo-no-intervalo inicio fim)})
+      (como-json {:erro "Parâmetros 'inicio' e 'fim' são obrigatórios no formato dd/MM/yyyy"} 400)))
 
   ;; Extrato total
   (comp/GET "/extrato-total" []
-    (como-json {:transacoes-extrato (db/transacoes)}))
-
+    (como-json {:transacoes-extrato (db/todas-as-transacoes)}))
 
   ;; Saldo total
   (comp/GET "/saldo-total" []
-    (como-json {:saldo (db/saldo-total)}))
+    (como-json {:saldo (db/somar-calorias)}))
+
+  ;; Listagem de usuários
+  (comp/GET "/usuarios" []
+    (como-json {:usuarios (db/todos-os-usuarios)}))
 
   ;; Extrato de ganhos
   (comp/GET "/extrato-ganhos" []
-    (como-json {:ganhos (db/transacoes-por-tipo "ganho")}))
+    (como-json {:ganhos (db/filtrar-por-tipo "ganho")}))
 
   ;; Extrato de perdas
   (comp/GET "/extrato-perdas" []
-    (como-json {:perdas (db/transacoes-por-tipo "perda")}))
+    (como-json {:perdas (db/filtrar-por-tipo "perda")}))
 
+  ;; Todas as transações
+  (comp/GET "/transacoes" []
+    (como-json {:transacoes (db/todas-as-transacoes)}))
 
+  ;; Rota 404
+  (route/not-found "Rota não encontrada"))
 
-  (route/not-found "Rota não encontrada")
-
-  (comp/GET "/transacoes" [] (como-json {:transacoes @db/transacoes-db})))
-
+;; Aplicação com middlewares
 (def app
   (-> rotas
       (wrap-json-body {:keywords? true})

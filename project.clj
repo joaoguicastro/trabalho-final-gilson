@@ -5,7 +5,8 @@
                  [ring/ring-defaults "0.3.3"]
                  [ring/ring-json "0.5.1"]
                  [cheshire "5.11.0"]
-                 [clj-http "3.12.3"]]
+                 [clj-http "3.12.3"]
+                 [clojure.java-time "1.3.0"]]
   :main calculadora.handler
   :plugins [[lein-ring "0.12.5"]]
   :ring {:handler calculadora.handler/app})

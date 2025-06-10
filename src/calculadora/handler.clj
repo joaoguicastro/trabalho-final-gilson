@@ -33,24 +33,23 @@
       (cond
         (not (#{:ganho :perda "ganho" "perda"} tipo))
         (como-json {:erro "Tipo deve ser 'ganho' ou 'perda'"} 400)
-
+  
         (nil? descricao)
         (como-json {:erro "Descrição obrigatória"} 400)
-
+  
         :else
         (try
-          (let [traducao (conexao/traduzir descricao "pt" "en")
-                descricao-ing (get traducao "translated_text")]
-            (if (str/blank? descricao-ing)
-              (como-json {:erro "Erro na tradução da descrição"} 422)
-              (let [registro {:tipo (name tipo)
-                              :descricao descricao-ing
-                              :data data
-                              :quantidade quantidade}]
-                (como-json (db/nova-transacao registro index)))))
+          (let [descricao-ing (or (conexao/traduzir descricao "pt" "en") descricao)]
+            (println "✅ Tradução final:" descricao-ing)
+            (let [registro {:tipo (name tipo)
+                            :descricao descricao-ing
+                            :data data
+                            :quantidade quantidade}]
+              (como-json (db/nova-transacao registro index))))
           (catch Exception e
             (println "❌ Erro ao registrar transação:" (.getMessage e))
             (como-json {:erro "Erro ao processar transação"} 500))))))
+
 
   ;; Extrato por período
   (comp/GET "/extrato" {{:keys [inicio fim]} :params}

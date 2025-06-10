@@ -34,24 +34,29 @@
       (println "Erro na API OpenFoodFacts:" (.getMessage e))
       [])))
 
-(def TRANSLATE_API_URL "https://google-api31.p.rapidapi.com/gtranslate")
-(def TRANSLATE_API_KEY "4af24503a6mshadf3b1d33832a9cp1118fdjsnfd8ac5bc0d1d")
-(def TRANSLATE_API_HOST "google-api31.p.rapidapi.com")
+(def TRANSLATE_API_URL "https://deep-translate1.p.rapidapi.com/language/translate/v2")
+(def TRANSLATE_API_KEY "d4dc508d7cmsh2ca39c84f349520p13da2djsn20e6d424a7f5")
+(def TRANSLATE_API_HOST "deep-translate1.p.rapidapi.com")
 
 (defn traduzir [texto origem destino]
   (try
     (let [resposta (client/post TRANSLATE_API_URL
                                 {:headers {"x-rapidapi-key" TRANSLATE_API_KEY
-                                           "x-rapidapi-host" TRANSLATE_API_HOST}
-                                 :content-type :json
-                                 :form-params {:text texto
-                                               :to destino
-                                               :from_lang origem}})
-          body (json/parse-string (:body resposta) true)
-          texto-traduzido (:translated_text body)]
-      (if (and texto-traduzido (not (str/blank? texto-traduzido)))
-        texto-traduzido
-        nil))
+                                           "x-rapidapi-host" TRANSLATE_API_HOST
+                                           "content-type" "application/json"}
+                                 :body (json/generate-string {:q texto
+                                                              :source origem
+                                                              :target destino})})
+          body (json/parse-string (:body resposta) true)]
+
+      (println "📦 RESPOSTA TRADUÇÃO:" body)
+
+      (let [traduzido (get-in body [:data :translations :translatedText 0])]
+        (println "📝 Tradução final:" traduzido)
+        (if (and traduzido (not (str/blank? traduzido)))
+          traduzido
+          texto)))
+
     (catch Exception e
-      (println "❌ Erro ao traduzir:" (.getMessage e))
-      nil)))
+      (println "⚠️ Erro ao traduzir com Deep Translate, usando original:" (.getMessage e))
+      texto)))

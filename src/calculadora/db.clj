@@ -6,10 +6,6 @@
 (def usuarios-db (atom []))
 (def transacoes-db (atom []))
 
-;; -------------------------------------
-;; Cadastro e listagem
-;; -------------------------------------
-
 (defn resetar []
   (reset! usuarios-db [])
   (reset! transacoes-db []))
@@ -42,10 +38,6 @@
     (swap! transacoes-db conj nova)
     nova))
 
-;; -------------------------------------
-;; Datas e filtros por período
-;; -------------------------------------
-
 (defn br-para-iso [data-str]
   (let [formatter (time/formatter "dd/MM/yyyy")
         local-date (time/local-date formatter data-str)]
@@ -74,10 +66,6 @@
    0
    (registros-no-intervalo dinicio dfim)))
 
-;; -------------------------------------
-;; Utilitários para extração segura
-;; -------------------------------------
-
 (defn extrair-calorias [s]
   (cond
     (number? s) s
@@ -90,10 +78,6 @@
   (when (string? s)
     (when-let [m (re-find #"\((\d+)" s)]
       (Integer/parseInt (second m)))))
-
-;; -------------------------------------
-;; Registro de transações com cálculo
-;; -------------------------------------
 
 (defn registrar-perda [registro index]
   (let [usuario (first @usuarios-db)]
@@ -122,7 +106,7 @@
       {:error "Erro ao registrar ganho"}
       (let [item (nth resposta index)
             calorias (extrair-calorias (:calorias item))
-            peso-ref (or (extrair-valor (:quantidade item)) 100) ; fallback para 100g
+            peso-ref (or (extrair-valor (:quantidade item)) 100)
             gramas (:quantidade registro)
             valor (/ (* calorias gramas) peso-ref)]
         (adicionar-transacao (merge registro {:valor valor :calorias valor}))))))

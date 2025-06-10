@@ -49,14 +49,14 @@
                                                               :target destino})})
           body (json/parse-string (:body resposta) true)]
 
-      (println "📦 RESPOSTA TRADUÇÃO:" body)
+      (println "RESPOSTA TRADUÇÃO:" body)
 
       (let [traduzido (get-in body [:data :translations :translatedText 0])]
-        (println "📝 Tradução final:" traduzido)
+        (println "Tradução final:" traduzido)
         (if (and traduzido (not (str/blank? traduzido)))
           traduzido
           texto)))
 
     (catch Exception e
-      (println "⚠️ Erro ao traduzir com Deep Translate, usando original:" (.getMessage e))
+      (println "Erro ao traduzir com Deep Translate, usando original:" (.getMessage e))
       texto)))

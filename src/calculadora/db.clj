@@ -115,3 +115,11 @@
   (case (:tipo registro)
     "perda" (registrar-perda registro index)
     "ganho" (registrar-ganho registro index)))
+
+
+
+
+
+
+
+;; testeeeeee
